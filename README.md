@@ -1,5 +1,7 @@
 # Whetstone — Demo MVP
 
+🌐 **ライブデモ：https://whetstone-gamma.vercel.app**
+
 **専門家の判断を「砥石」に当てて、AIエージェントを研ぎ上げるランタイム層。**
 
 このデモが証明するただ一つのこと：
