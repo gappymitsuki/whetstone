@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useCallback } from "react";
+import { useReducer, useCallback, useState } from "react";
 import type {
   BatchResult,
   Case,
@@ -10,11 +10,12 @@ import type {
 } from "@/lib/types";
 import {
   judgeBatch,
+  judgeAdhoc,
   generalizeRule,
   computeBatchResult,
 } from "@/lib/engine";
 import { BATCHES, TOTAL_BATCHES } from "@/data/cases";
-import { EXPERTS, getExpert } from "@/data/experts";
+import { EXPERTS } from "@/data/experts";
 import {
   APP_NAME,
   APP_TAGLINE,
@@ -46,6 +47,7 @@ type Action =
   | { type: "SET_THRESHOLD"; value: number }
   | { type: "START_BATCH" }
   | { type: "FINISH_BATCH"; result: BatchResult; cases: Case[] }
+  | { type: "ADHOC_RESULT"; caseObj: Case; judgment: Judgment }
   | { type: "START_JUDGE"; caseId: string }
   | { type: "FINISH_JUDGE"; caseId: string; rule: Rule }
   | { type: "RESET" };
@@ -81,6 +83,17 @@ function reducer(state: State, action: Action): State {
         queue: escalated,
       };
     }
+    case "ADHOC_RESULT": {
+      // A single live-typed input: prepend to the list; queue it if escalated.
+      return {
+        ...state,
+        lastBatchCases: [action.caseObj, ...state.lastBatchCases],
+        lastJudgments: [action.judgment, ...state.lastJudgments],
+        queue: action.judgment.escalated
+          ? [action.judgment, ...state.queue]
+          : state.queue,
+      };
+    }
     case "START_JUDGE": {
       const next = new Set(state.busyIds);
       next.add(action.caseId);
@@ -103,7 +116,7 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-/* 役割を説明するコンテキストバー（「今は誰の視点か」を明示） */
+/* Context bar that makes "whose view is this, and why" explicit. */
 function RoleContextBar({ view }: { view: View }) {
   if (view === "operator") {
     return (
@@ -111,11 +124,14 @@ function RoleContextBar({ view }: { view: View }) {
         <span className="text-lg leading-none">🛠</span>
         <div className="text-sm">
           <span className="font-semibold text-accent-soft">
-            運用者ビュー（AIチーム / 運用リード）
+            Operator view (AI team / ops lead)
           </span>
           <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
-            あなたは Whetstone を導入した側。本番ランを回し、ダッシュボードで
-            「どこまでAIに任せられるか」を統制する。確信が持てない判断は専門家へ自動で委ねられる。
+            You deployed Whetstone. An AI agent reviews incoming{" "}
+            <span className="text-slate-300">ad-copy submissions</span> for
+            brand-guideline compliance. You run production traffic and use the
+            dashboard to control how much you can safely entrust to the agent —
+            anything it&apos;s unsure about is auto-routed to an expert.
           </p>
         </div>
       </div>
@@ -126,18 +142,19 @@ function RoleContextBar({ view }: { view: View }) {
       <span className="text-lg leading-none">🎓</span>
       <div className="text-sm">
         <span className="font-semibold text-violet-200">
-          専門家ビュー（法務・ブランドの“師匠”）
+          Expert view (the Legal / Brand &ldquo;master&rdquo;)
         </span>
         <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
-          あなたは現場のドメインエキスパート。届いた判断だけを最小文脈で裁く。
-          あなたの一裁きは汎用ルールとして蓄積され、次から同種をAIが自走できるようになる。
+          You are the domain expert. Judge only the cases that reach you, with
+          minimal context. Each judgment becomes a generalized rule, so next
+          time the agent handles the same kind of case on its own.
         </p>
       </div>
     </div>
   );
 }
 
-/* 運用者ビュー：エスカレ状況の読み取り専用サマリ（操作は専門家ビューで） */
+/* Operator: read-only summary of what's been delegated to experts. */
 function EscalationSummary({
   queue,
   onGoExpert,
@@ -148,11 +165,11 @@ function EscalationSummary({
   return (
     <div className="flex flex-col">
       <h2 className="mb-2 text-sm font-semibold text-slate-200">
-        専門家へ委譲中
+        Delegated to experts
       </h2>
       {queue.length === 0 ? (
         <div className="rounded-lg border border-dashed border-ink-600 p-4 text-center text-xs text-slate-500">
-          いま専門家の判断待ちのケースはありません
+          Nothing awaiting expert judgment right now.
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -171,7 +188,7 @@ function EscalationSummary({
                   </span>
                 </div>
                 <span className="text-sm text-slate-300">
-                  <span className="font-mono text-lg text-slate-100">{n}</span> 件 判断待ち
+                  <span className="font-mono text-lg text-slate-100">{n}</span> awaiting
                 </span>
               </div>
             );
@@ -181,7 +198,7 @@ function EscalationSummary({
             onClick={onGoExpert}
             className="mt-1 self-start rounded-md border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 transition-colors hover:bg-violet-500/20"
           >
-            専門家ビューで対応する →
+            Handle these in the Expert view →
           </button>
         </div>
       )}
@@ -203,6 +220,9 @@ export default function Page() {
     busyIds,
   } = state;
 
+  const [draft, setDraft] = useState("");
+  const [adhocBusy, setAdhocBusy] = useState(false);
+
   const nextBatchNumber = batchHistory.length + 1;
   const isOperator = view === "operator";
 
@@ -215,6 +235,21 @@ export default function Page() {
     const result = computeBatchResult(nextBatchNumber, judgments, cases);
     dispatch({ type: "FINISH_BATCH", result, cases });
   }, [running, batchHistory.length, rules, threshold, nextBatchNumber]);
+
+  const submitAdhoc = useCallback(async () => {
+    const copy = draft.trim();
+    if (!copy || adhocBusy) return;
+    setAdhocBusy(true);
+    const { caseObj, judgment } = await judgeAdhoc(
+      copy,
+      rules,
+      threshold,
+      Date.now()
+    );
+    dispatch({ type: "ADHOC_RESULT", caseObj, judgment });
+    setDraft("");
+    setAdhocBusy(false);
+  }, [draft, adhocBusy, rules, threshold]);
 
   const confirmReview = useCallback(
     async (caseId: string, label: FinalLabel, reason: string) => {
@@ -235,24 +270,24 @@ export default function Page() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-5 px-4 py-5 lg:px-8">
-      {/* ヘッダー */}
+      {/* Header */}
       <header className="flex flex-col gap-4 rounded-xl border border-ink-600 bg-ink-800 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-bold tracking-tight text-slate-50">
               {APP_NAME}
             </h1>
-            <span className="hidden text-xs text-slate-400 sm:inline">
+            <span className="hidden text-xs text-slate-400 md:inline">
               {APP_TAGLINE}
             </span>
             {OFFLINE_DEMO_MODE && (
               <span className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] text-warn">
-                オフラインデモ
+                offline demo
               </span>
             )}
           </div>
 
-          {/* ロール切替 */}
+          {/* Role switch */}
           <div className="inline-flex overflow-hidden rounded-lg border border-ink-500">
             <button
               type="button"
@@ -263,7 +298,7 @@ export default function Page() {
                   : "text-slate-400 hover:bg-ink-600"
               }`}
             >
-              🛠 運用者ビュー
+              🛠 Operator
             </button>
             <button
               type="button"
@@ -274,7 +309,7 @@ export default function Page() {
                   : "text-slate-400 hover:bg-ink-600"
               }`}
             >
-              🎓 専門家ビュー
+              🎓 Expert
               {queue.length > 0 && (
                 <span className="rounded-full bg-violet-500 px-1.5 text-[10px] font-bold text-white">
                   {queue.length}
@@ -284,11 +319,11 @@ export default function Page() {
           </div>
         </div>
 
-        {/* 運用者だけが触れる本番ラン制御 */}
+        {/* Production-run controls — operator only */}
         {isOperator && (
           <div className="flex flex-wrap items-center gap-4 border-t border-ink-600 pt-3">
             <label className="flex items-center gap-2 text-xs text-slate-300">
-              <span className="whitespace-nowrap">確信度閾値</span>
+              <span className="whitespace-nowrap">Confidence threshold</span>
               <input
                 type="range"
                 min={40}
@@ -305,7 +340,7 @@ export default function Page() {
             </label>
 
             <div className="flex items-center gap-2 text-xs text-slate-400">
-              本番ラン
+              Run
               <span className="font-mono text-sm text-slate-100">
                 #{nextBatchNumber}
               </span>
@@ -317,7 +352,7 @@ export default function Page() {
               disabled={running}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-ink-900 transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {running ? "稼働中…" : "▶ 本番ランを実行"}
+              {running ? "Running…" : "▶ Run production batch"}
             </button>
             <button
               type="button"
@@ -325,10 +360,10 @@ export default function Page() {
               disabled={running}
               className="rounded-lg border border-ink-500 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-ink-600 disabled:opacity-50"
             >
-              リセット
+              Reset
             </button>
             <span className="hidden text-[11px] text-slate-500 lg:inline">
-              ＝ 本番でエージェントがトラフィック（コピー10件）を処理する1サイクル
+              = one cycle of the agent handling production traffic (10 copy submissions)
             </span>
           </div>
         )}
@@ -336,17 +371,61 @@ export default function Page() {
 
       <RoleContextBar view={view} />
 
-      {/* ===== 運用者ビュー ===== */}
+      {/* ===== Operator view ===== */}
       {isOperator && (
         <>
+          {/* Live input — make "what is the input" tangible */}
+          <section className="rounded-xl border border-ink-600 bg-ink-800/50 p-4">
+            <h2 className="mb-1 text-sm font-semibold text-slate-200">
+              Submit a copy to the agent
+            </h2>
+            <p className="mb-2 text-xs text-slate-500">
+              The input is a single piece of ad copy (what a marketer would submit).
+              Type one and the agent judges it live against the guideline + learned rules.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitAdhoc();
+                }}
+                placeholder='e.g. "The #1 pen in the world" or "Now in 12 colors"'
+                className="min-w-[220px] flex-1 rounded-md border border-ink-500 bg-ink-900 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-accent"
+              />
+              <button
+                type="button"
+                onClick={submitAdhoc}
+                disabled={adhocBusy || !draft.trim()}
+                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-ink-900 transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                {adhocBusy ? "Judging…" : "Judge"}
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {['The #1 pen in the world', 'Twice as fast as other brands', 'Our best ink yet', 'Free today only'].map(
+                (ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => setDraft(ex)}
+                    className="rounded border border-ink-600 px-2 py-0.5 text-[11px] text-slate-400 transition-colors hover:border-accent/40 hover:text-accent-soft"
+                  >
+                    {ex}
+                  </button>
+                )
+              )}
+            </div>
+          </section>
+
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <section className="rounded-xl border border-ink-600 bg-ink-800/50 p-4">
               <h2 className="mb-2 text-sm font-semibold text-slate-200">
-                エージェントの判定（本番ラン）
+                Agent judgments
                 {lastJudgments.length > 0 && (
                   <span className="ml-2 text-xs font-normal text-slate-500">
-                    ラン #{batchHistory[batchHistory.length - 1]?.batchNumber} ・{" "}
-                    {lastJudgments.length}件
+                    {lastJudgments.length} items
                   </span>
                 )}
               </h2>
@@ -362,7 +441,7 @@ export default function Page() {
 
             <section className="rounded-xl border border-ink-600 bg-ink-800/50 p-4">
               <h2 className="mb-3 text-sm font-semibold text-slate-200">
-                切れ味ダッシュボード
+                Sharpness dashboard
               </h2>
               <Dashboard history={batchHistory} />
             </section>
@@ -384,7 +463,7 @@ export default function Page() {
         </>
       )}
 
-      {/* ===== 専門家ビュー ===== */}
+      {/* ===== Expert view ===== */}
       {!isOperator && (
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
           <section className="rounded-xl border border-ink-600 bg-ink-800/50 p-4">
@@ -396,7 +475,8 @@ export default function Page() {
             />
             {queue.length === 0 && (
               <p className="mt-2 text-center text-xs text-slate-500">
-                受信トレイは空です。運用者が本番ランを回すと、確信の持てない判断がここに届きます。
+                Your inbox is empty. When the operator runs production traffic, the
+                cases the agent is unsure about land here.
               </p>
             )}
           </section>
@@ -406,16 +486,16 @@ export default function Page() {
               <RuleBook rules={rules} />
             </div>
             <p className="mt-2 text-[11px] text-slate-500">
-              ↑ あなたの判断が研いだルール。
-              <span className="text-accent">運用者ビュー</span>
-              で本番ランを回すと、これらが効いてエスカレ率が下がります。
+              ↑ Rules your judgments have sharpened. Switch to the{" "}
+              <span className="text-accent">Operator view</span> and run a batch —
+              these kick in and the escalation rate drops.
             </p>
           </section>
         </div>
       )}
 
       <footer className="pb-4 text-center text-[11px] text-slate-600">
-        専門家の判断をランタイムで研ぎ上げる — Whetstone Demo
+        Sharpening agents against expert judgment, at runtime — Whetstone Demo
       </footer>
     </main>
   );

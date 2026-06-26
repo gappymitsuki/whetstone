@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Whetstone — エージェントを専門家の判断で研ぎ上げる",
+  title: "Whetstone — sharpen AI agents against expert judgment",
   description:
-    "専門家のジャッジを汎用ルールに変換し、AIエージェントのエスカレーション率を下げるランタイム層",
+    "A runtime layer that turns expert judgments into reusable rules and lowers an AI agent's escalation rate.",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ja">
+    <html lang="en">
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

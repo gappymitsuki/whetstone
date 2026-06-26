@@ -6,9 +6,9 @@ import ConfidenceBar from "./ConfidenceBar";
 
 function LabelBadge({ label }: { label: Label }) {
   const styles: Record<Label, string> = {
-    適合: "bg-ok/15 text-ok border-ok/30",
-    違反: "bg-bad/15 text-bad border-bad/30",
-    要確認: "bg-warn/15 text-warn border-warn/30",
+    Compliant: "bg-ok/15 text-ok border-ok/30",
+    Violation: "bg-bad/15 text-bad border-bad/30",
+    "Needs Review": "bg-warn/15 text-warn border-warn/30",
   };
   return (
     <span
@@ -33,7 +33,7 @@ export default function CaseList({
   if (judgments.length === 0) {
     return (
       <div className="flex h-full min-h-[200px] items-center justify-center text-sm text-slate-500">
-        「バッチ実行」を押すと判定結果がここに並びます
+        Run a production run to see the agent&apos;s judgments here.
       </div>
     );
   }
@@ -54,14 +54,14 @@ export default function CaseList({
               <div className="flex shrink-0 items-center gap-1.5">
                 {j.pending ? (
                   <span className="rounded border border-slate-500/40 bg-slate-500/10 px-2 py-0.5 text-xs text-slate-400">
-                    判定保留
+                    On hold
                   </span>
                 ) : (
                   <LabelBadge label={j.label} />
                 )}
                 {j.escalated && (
                   <span className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                    エスカレ
+                    Escalated
                   </span>
                 )}
                 {j.escalated &&
@@ -94,7 +94,7 @@ export default function CaseList({
                     title={r.pattern}
                     className="max-w-full truncate rounded bg-accent/10 px-1.5 py-0.5 text-[11px] text-accent-soft"
                   >
-                    ⮡ 依拠ルール {r.id}
+                    ⮡ relied on {r.id}
                   </span>
                 ))}
               </div>

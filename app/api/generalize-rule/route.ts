@@ -10,44 +10,45 @@ export const runtime = "nodejs";
 
 function normalize(
   r: Partial<GeneralizeResponse>,
-  fallbackLabel: "適合" | "違反"
+  fallbackLabel: "Compliant" | "Violation"
 ): GeneralizeResponse {
-  const label = r.label === "適合" || r.label === "違反" ? r.label : fallbackLabel;
+  const label =
+    r.label === "Compliant" || r.label === "Violation" ? r.label : fallbackLabel;
   return {
     pattern:
       typeof r.pattern === "string" && r.pattern.trim()
         ? r.pattern
-        : "同種の表現全般",
+        : "Copy of the same kind, in general",
     label,
-    reason: typeof r.reason === "string" ? r.reason : "専門家判断に基づく",
+    reason: typeof r.reason === "string" ? r.reason : "Based on the expert's judgment",
   };
 }
 
-/** サーバー側オフラインフォールバック */
+/** Server-side offline fallback. */
 function offlineFallback(
   copy: string,
-  expertLabel: "適合" | "違反",
+  expertLabel: "Compliant" | "Violation",
   expertReason: string
 ): GeneralizeResponse {
   const c = findCaseByCopy(copy);
   const info = c?.greyType ? GREY_TYPE_INFO[c.greyType] : undefined;
   return {
     pattern: info
-      ? `「${c?.greyType}」類型：${info.reason}に該当するもの`
-      : `「${copy}」と同種の表現`,
+      ? `Copy of the "${c?.greyType}" type: anything matching — ${info.reason}`
+      : `Copy of the same kind as "${copy}"`,
     label: expertLabel,
-    reason: expertReason || info?.reason || "専門家判断に基づく",
+    reason: expertReason || info?.reason || "Based on the expert's judgment",
   };
 }
 
 export async function POST(req: NextRequest) {
   let copy = "";
-  let expertLabel: "適合" | "違反" = "違反";
+  let expertLabel: "Compliant" | "Violation" = "Violation";
   let expertReason = "";
   try {
     const body = await req.json();
     copy = String(body?.copy ?? "");
-    expertLabel = body?.expertLabel === "適合" ? "適合" : "違反";
+    expertLabel = body?.expertLabel === "Compliant" ? "Compliant" : "Violation";
     expertReason = String(body?.expertReason ?? "");
   } catch {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });

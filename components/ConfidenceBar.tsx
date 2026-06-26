@@ -3,9 +3,9 @@
 import type { Label } from "@/lib/types";
 
 function barColor(label: Label, confidence: number, threshold: number): string {
-  if (label === "要確認") return "bg-warn";
-  if (label === "違反") return "bg-bad";
-  // 適合
+  if (label === "Needs Review") return "bg-warn";
+  if (label === "Violation") return "bg-bad";
+  // Compliant
   return confidence >= threshold ? "bg-ok" : "bg-warn";
 }
 

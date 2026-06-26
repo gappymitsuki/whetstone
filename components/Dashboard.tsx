@@ -49,7 +49,7 @@ export default function Dashboard({ history }: { history: BatchResult[] }) {
       {/* 直近バッチの大きな数値 */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-ink-600 bg-ink-800 p-3">
-          <div className="text-xs text-slate-400">エスカレ率（直近）</div>
+          <div className="text-xs text-slate-400">Escalation rate (latest)</div>
           <div className="mt-1 flex items-end gap-2">
             <span className="font-mono text-3xl font-semibold tabular-nums text-accent">
               {latest ? Math.round(latest.escalationRate * 100) : "—"}
@@ -68,7 +68,7 @@ export default function Dashboard({ history }: { history: BatchResult[] }) {
           </div>
         </div>
         <div className="rounded-lg border border-ink-600 bg-ink-800 p-3">
-          <div className="text-xs text-slate-400">自走判定の正答率</div>
+          <div className="text-xs text-slate-400">Self-driven accuracy</div>
           <div className="mt-1">
             <span className="font-mono text-3xl font-semibold tabular-nums text-ok">
               {latest ? Math.round(latest.accuracy * 100) : "—"}
@@ -83,11 +83,11 @@ export default function Dashboard({ history }: { history: BatchResult[] }) {
         <div className="mb-2 flex items-center gap-4 text-xs">
           <span className="flex items-center gap-1.5 text-slate-300">
             <span className="inline-block h-2 w-3 rounded-full bg-accent" />
-            エスカレ率
+            Escalation rate
           </span>
           <span className="flex items-center gap-1.5 text-slate-300">
             <span className="inline-block h-2 w-3 rounded-full bg-ok" />
-            正答率
+            Accuracy
           </span>
         </div>
 
@@ -95,7 +95,7 @@ export default function Dashboard({ history }: { history: BatchResult[] }) {
           viewBox={`0 0 ${W} ${H}`}
           className="w-full"
           role="img"
-          aria-label="バッチごとのエスカレ率と正答率の推移"
+          aria-label="Escalation rate and accuracy across production runs"
         >
           {/* グリッド + Y軸ラベル */}
           {gridY.map(({ g, y }) => (
@@ -130,7 +130,7 @@ export default function Dashboard({ history }: { history: BatchResult[] }) {
               className="fill-slate-500"
               fontSize={9}
             >
-              B{history[i].batchNumber}
+              R{history[i].batchNumber}
             </text>
           ))}
 
@@ -142,7 +142,7 @@ export default function Dashboard({ history }: { history: BatchResult[] }) {
               className="fill-slate-600"
               fontSize={11}
             >
-              バッチ未実行
+              No runs yet
             </text>
           )}
 

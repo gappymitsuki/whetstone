@@ -7,7 +7,7 @@ import type {
   GeneralizeResponse,
   FinalLabel,
 } from "@/lib/types";
-import { GREY_TYPE_INFO } from "@/data/cases";
+import { GREY_TYPE_INFO, inferCaseFromCopy } from "@/data/cases";
 import { routeEscalation } from "@/data/experts";
 import { HIGH_CONFIDENCE, LOW_CONFIDENCE, OFFLINE_DEMO_MODE } from "@/lib/config";
 
@@ -29,39 +29,39 @@ export function findCoveringRule(c: Case, rules: Rule[]): Rule | undefined {
  * - グレーケース: 該当ルールがあれば高確信で自走、無ければ「要確認」で迷う。
  */
 export function computeOfflineJudgment(c: Case, rules: Rule[]): JudgeResponse {
-  // 明確なケース：ガイドラインから自明。常に高確信。
+  // Clear case: obvious from the guideline. Always high confidence.
   if (!c.greyType) {
     return {
       label: c.trueLabel,
       confidence: 92,
       rationale:
-        c.trueLabel === "違反"
-          ? "断定・誇大表現を含み、ガイドラインから明らかに違反。"
-          : "ガイドライン上の懸念は無く、明らかに適合。",
+        c.trueLabel === "Violation"
+          ? "Contains an absolute/exaggerated claim — a clear violation per the guideline."
+          : "No guideline concerns — clearly compliant.",
       reliedOnRuleIds: [],
     };
   }
 
-  // グレーケース：該当する専門家ルールがあるか
+  // Grey case: is there a covering expert rule?
   const rule = findCoveringRule(c, rules);
   const info = GREY_TYPE_INFO[c.greyType];
 
   if (rule && info) {
-    // 学習済み → 明示の指針が与えられ、確信度が閾値を超える（=自走）
+    // Learned → explicit guidance exists, confidence clears the threshold (self-driving)
     return {
       label: info.label,
       confidence: HIGH_CONFIDENCE,
-      rationale: `蓄積ルールに合致：${info.reason}`,
+      rationale: `Matches an accumulated rule: ${info.reason}`,
       reliedOnRuleIds: [rule.id],
     };
   }
 
-  // 未学習 → 解釈が割れ、本当に迷う
+  // Not yet learned → genuinely ambiguous
   return {
-    label: "要確認",
+    label: "Needs Review",
     confidence: LOW_CONFIDENCE,
     rationale:
-      "ガイドラインの解釈が割れる類型で、該当する判断ルールが無いため確信が持てない。",
+      "Ambiguous guideline interpretation and no matching rule yet, so not confident.",
     reliedOnRuleIds: [],
   };
 }
@@ -70,9 +70,9 @@ export function computeOfflineJudgment(c: Case, rules: Rule[]): JudgeResponse {
  * ゲーティング
  * ========================================================================= */
 
-/** confidence < threshold もしくは「要確認」ならエスカレ */
+/** Escalate when confidence < threshold or label is "Needs Review". */
 export function shouldEscalate(resp: JudgeResponse, threshold: number): boolean {
-  return resp.label === "要確認" || resp.confidence < threshold;
+  return resp.label === "Needs Review" || resp.confidence < threshold;
 }
 
 /** JudgeResponse → Judgment（ゲーティング適用） */
@@ -199,19 +199,57 @@ export async function judgeCase(
     try {
       return buildJudgment(c, computeOfflineJudgment(c, rules), threshold);
     } catch {
-      // 最終防衛線：判定保留（アプリは絶対に落とさない）
+      // Last line of defense: pending (never let the app crash)
       return buildJudgment(
         c,
         {
-          label: "要確認",
+          label: "Needs Review",
           confidence: 0,
-          rationale: "判定に失敗したため保留中。",
+          rationale: "Judging failed; held for review.",
           reliedOnRuleIds: [],
         },
         threshold,
         true
       );
     }
+  }
+}
+
+/**
+ * Judge an ad-hoc, live-typed copy. Returns both the synthetic Case (so the UI
+ * can register it for the queue / list lookups) and its Judgment.
+ * - OFFLINE_DEMO_MODE: classify the copy heuristically, then judge deterministically.
+ * - Online: send the copy to /api/judge; route via the inferred synthetic case.
+ */
+export async function judgeAdhoc(
+  copy: string,
+  rules: Rule[],
+  threshold: number,
+  now: number
+): Promise<{ caseObj: Case; judgment: Judgment }> {
+  const caseObj = inferCaseFromCopy(copy, `adhoc_${now.toString(36)}`);
+
+  if (OFFLINE_DEMO_MODE) {
+    return {
+      caseObj,
+      judgment: buildJudgment(caseObj, computeOfflineJudgment(caseObj, rules), threshold),
+    };
+  }
+
+  try {
+    const res = await fetch("/api/judge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ copy, rules }),
+    });
+    if (!res.ok) throw new Error(`judge http ${res.status}`);
+    const data = (await res.json()) as JudgeResponse;
+    return { caseObj, judgment: buildJudgment(caseObj, data, threshold) };
+  } catch {
+    return {
+      caseObj,
+      judgment: buildJudgment(caseObj, computeOfflineJudgment(caseObj, rules), threshold),
+    };
   }
 }
 
@@ -244,10 +282,10 @@ export async function generalizeRule(
       : undefined;
     return {
       pattern: info
-        ? `「${sourceCase.greyType}」類型：${info.reason}に該当するもの`
-        : `「${sourceCase.copy}」と同種の表現`,
+        ? `Copy of the "${sourceCase.greyType}" type: anything matching — ${info.reason}`
+        : `Copy of the same kind as "${sourceCase.copy}"`,
       label: expertLabel,
-      reason: expertReason || info?.reason || "専門家判断に基づく",
+      reason: expertReason || info?.reason || "Based on the expert's judgment",
     };
   };
 

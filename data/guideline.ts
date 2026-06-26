@@ -1,32 +1,39 @@
 /**
- * ブランドガイドライン（架空・無害な一般消費財：文房具ブランド「Nagomi」）。
+ * Brand guideline (fictional, harmless consumer goods: a stationery brand "Nagomi").
  *
- * ドメイン差し替え容易性：題材を変える場合、このファイルと data/cases.ts の
- * 2ファイルの編集だけで済む。ロジックにはドメイン知識をハードコードしない。
+ * Domain swappability: to change the subject matter, edit only this file and
+ * data/cases.ts. No domain knowledge is hard-coded into the logic.
  */
-export const GUIDELINE = `【Nagomi 文房具 ブランド広告コピー審査ガイドライン】
+export const GUIDELINE = `[Nagomi Stationery — Brand Ad-Copy Review Guideline]
 
-1. 最上級表現の根拠
-   「No.1」「世界一」「史上最高」「業界最高」等の最上級・序列表現は、
-   客観的根拠データ（調査機関名・対象・時期）の添付が必須。根拠が無ければ違反。
+1. Evidence for superlatives
+   Superlative or ranking claims such as "No.1", "#1", "world's best",
+   "best ever", or "industry-leading" REQUIRE attached objective supporting
+   data (research body, scope, and date). Without evidence, it is a violation.
 
-2. 競合比較
-   他社・他製品との比較表現（「他社製より」「◯倍」等）は、出典と比較条件の
-   明示が必要。出典・条件が無い比較は違反。
+2. Comparative claims
+   Any comparison against competitors or other products (e.g. "than other
+   brands", "Nx longer") must state the source and the comparison conditions.
+   A comparison without source/conditions is a violation.
 
-3. 誇大・断定表現の禁止
-   「絶対」「必ず」「誰でも」「100%」等、結果を断定・保証する誇大表現は禁止。
+3. No absolute or exaggerated claims
+   Wording that guarantees or asserts an outcome — "never", "always",
+   "anyone", "guaranteed", "100%" — is prohibited.
 
-4. 差別的・排他的表現の禁止
-   特定の属性を貶める、または排除する表現は禁止。
+4. No discriminatory or exclusionary expression
+   Wording that demeans or excludes any group is prohibited.
 
-5. 価格表示
-   価格に言及する場合は税込・適用条件（期間・対象）を明記すること。
-   「半額」「割引」等を条件不明記で用いるのは違反。
+5. Price display
+   When price is mentioned, state tax-inclusive pricing and the applicable
+   conditions (period, scope). Using "half price" or "discount" without
+   stating conditions is a violation.
 
-【補足：許容される表現】
-   ・自社内の比較（「当社史上最高」「従来比」など、比較対象が自社製品に閉じるもの）は、
-     外部比較ではないため最上級表現には当たらず許容される。
-   ・主観に閉じた情緒的表現でも、客観的な序列・最上級を主張していなければ許容される。
-     ただし「史上最高」等の最上級語を含むものは、たとえ情緒的文脈でも 1. に従い根拠が必要。
+[Note: what is allowed]
+   - Self-comparison (e.g. "our best ever", "vs. our previous model"), where
+     the comparison is confined to the brand's own products, is NOT an external
+     superlative and is therefore allowed.
+   - Purely emotional, subjective wording is allowed as long as it does not
+     assert an objective ranking or superlative. However, copy containing a
+     superlative term such as "best ever / in history" still falls under (1)
+     and requires evidence, even in an emotional context.
 `;

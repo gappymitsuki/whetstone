@@ -3,7 +3,7 @@ import { buildJudgePrompt } from "@/lib/prompts";
 import { callLLMJson } from "@/lib/openai";
 import { computeOfflineJudgment } from "@/lib/engine";
 import { GUIDELINE } from "@/data/guideline";
-import { findCaseByCopy } from "@/data/cases";
+import { findCaseByCopy, inferCaseFromCopy } from "@/data/cases";
 import { OFFLINE_DEMO_MODE } from "@/lib/config";
 import type { JudgeResponse, Rule } from "@/lib/types";
 
@@ -11,9 +11,9 @@ export const runtime = "nodejs";
 
 function normalize(r: Partial<JudgeResponse>): JudgeResponse {
   const label =
-    r.label === "適合" || r.label === "違反" || r.label === "要確認"
+    r.label === "Compliant" || r.label === "Violation" || r.label === "Needs Review"
       ? r.label
-      : "要確認";
+      : "Needs Review";
   let confidence =
     typeof r.confidence === "number" && isFinite(r.confidence)
       ? Math.round(r.confidence)
@@ -31,15 +31,8 @@ function normalize(r: Partial<JudgeResponse>): JudgeResponse {
 
 /** サーバー側オフラインフォールバック（API 不通・キー未設定時） */
 function offlineFallback(copy: string, rules: Rule[]): JudgeResponse {
-  const c = findCaseByCopy(copy);
-  if (c) return computeOfflineJudgment(c, rules);
-  // 未知コピーは安全側に「要確認」
-  return {
-    label: "要確認",
-    confidence: 50,
-    rationale: "オフラインフォールバック：該当ケースが見つからず保留。",
-    reliedOnRuleIds: [],
-  };
+  const c = findCaseByCopy(copy) ?? inferCaseFromCopy(copy, "offline");
+  return computeOfflineJudgment(c, rules);
 }
 
 export async function POST(req: NextRequest) {

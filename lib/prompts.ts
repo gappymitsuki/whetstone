@@ -1,86 +1,86 @@
 import type { Rule } from "@/lib/types";
 
-/** 蓄積ルールを LLM に渡せる形に整形 */
+/** Format accumulated rules for the LLM. */
 function formatRules(rules: Rule[]): string {
   if (rules.length === 0) {
-    return "（まだ専門家由来のルールは蓄積されていません）";
+    return "(No expert-derived rules accumulated yet.)";
   }
   return rules
     .map(
       (r) =>
-        `- [${r.id}] 条件: ${r.pattern} / 判定: ${r.label} / 理由: ${r.reason}`
+        `- [${r.id}] condition: ${r.pattern} / verdict: ${r.label} / reason: ${r.reason}`
     )
     .join("\n");
 }
 
-/** 判定（/api/judge）用のプロンプト */
+/** Prompt for judging (/api/judge). */
 export function buildJudgePrompt(
   guideline: string,
   rules: Rule[],
   copy: string
 ): { system: string; user: string } {
-  const system = `あなたはブランド広告コピーの審査担当です。与えられた【ガイドライン】に照らして、コピーが「適合」か「違反」かを判定します。
+  const system = `You are a reviewer of brand advertising copy. Judge whether each piece of copy is "Compliant" or "Violation" against the provided [Guideline].
 
-加えて、人間の専門家の過去判断から蓄積された【判断ルール集】を渡します。これは専門家が実際に下した判断を汎用化したもので、ガイドラインの公式な解釈指針として扱ってください。
+You are also given a [Rule Book] accumulated from past judgments by human experts. These are real expert decisions, generalized; treat them as the official interpretive guidance for the guideline.
 
-判定方針：
-- 該当するルールが明確に適用できる場合、それを正とみなして高い確信度で適用する。依拠したルールの id を reliedOnRuleIds に必ず列挙する。
-- 該当ルールが無くても、ガイドラインから明らかに判断できる場合は高い確信度で判定する。
-- 「明確に適用できるルールがある」または「ガイドラインから明らか」のとき → confidence は 85 以上。
-- 該当ルールが無く、かつガイドラインの解釈が割れて本当に判断に迷う場合 → label は "要確認"、confidence は 70 未満。
-- 推測で適合/違反を断定しない。迷うなら正直に "要確認" を選ぶ。
+Judging policy:
+- If a rule clearly applies, treat it as authoritative and judge with high confidence. List the id(s) of the rule(s) you relied on in reliedOnRuleIds.
+- Even with no matching rule, if the guideline makes the verdict obvious, judge with high confidence.
+- When "a rule clearly applies" or "the guideline is obvious" → confidence is 85 or higher.
+- When there is no matching rule AND the guideline is genuinely ambiguous → label is "Needs Review" and confidence is below 70.
+- Do not assert Compliant/Violation on a guess. If unsure, honestly choose "Needs Review".
 
-出力は厳密な JSON のみ。前置き・説明・コードフェンス（\`\`\`）は一切禁止。
-出力スキーマ：
-{ "label": "適合" | "違反" | "要確認", "confidence": 0-100 の整数, "rationale": "簡潔な理由（80字以内）", "reliedOnRuleIds": ["依拠したルールid", ...] }`;
+Output STRICT JSON only. No preamble, no explanation, no code fences.
+Output schema:
+{ "label": "Compliant" | "Violation" | "Needs Review", "confidence": integer 0-100, "rationale": "concise reason (<= 140 chars)", "reliedOnRuleIds": ["ruleId", ...] }`;
 
-  const user = `【ガイドライン】
+  const user = `[Guideline]
 ${guideline}
 
-【判断ルール集（専門家由来）】
+[Rule Book (expert-derived)]
 ${formatRules(rules)}
 
-【審査対象コピー】
+[Copy under review]
 ${copy}
 
-このコピーを判定し、JSON のみを出力してください。`;
+Judge this copy and output JSON only.`;
 
   return { system, user };
 }
 
-/** ルール汎用化（/api/generalize-rule）用のプロンプト */
+/** Prompt for rule generalization (/api/generalize-rule). */
 export function buildGeneralizePrompt(
   guideline: string,
   copy: string,
   expertLabel: string,
   expertReason: string
 ): { system: string; user: string } {
-  const system = `あなたは審査ルールの設計者です。専門家が個別のコピーに対して下した判断を、「特定のコピー本文に依存しない、再利用可能な汎用トリガー条件」へと一般化します。
+  const system = `You are a review-rule designer. Generalize an expert's judgment on a specific piece of copy into a reusable trigger condition that does NOT depend on that exact copy.
 
-要件：
-- pattern は、その具体コピーだけでなく「同じ類型の別のコピー」にも当てはまる一般条件にする。固有名詞や特定フレーズをそのまま写さない。
-- label は専門家の判断（適合/違反）をそのまま採用する。
-- reason はガイドラインのどの観点に基づくかを簡潔に述べる。
+Requirements:
+- "pattern" must apply not just to this copy but to other copy of the same type. Do not copy proper nouns or specific phrases verbatim.
+- "label" adopts the expert's verdict (Compliant/Violation) as-is.
+- "reason" states concisely which aspect of the guideline it rests on.
 
-良い例：
-  入力コピー「業界No.1の書き心地」＋専門家「違反：客観的な根拠データが無い」
-  → pattern「『No.1』『世界一』『最高』等の最上級・序列表現で、客観的根拠データ（調査機関・対象・時期）の添付が無いもの」, label「違反」, reason「ガイドライン1：最上級表現には根拠が必須」
+Good example:
+  Input copy "The #1 writing feel in the industry" + expert "Violation: no objective supporting data"
+  → pattern "Superlative/ranking claims such as 'No.1', '#1', 'world's best', 'best' with no objective supporting data (research body, scope, date) attached", label "Violation", reason "Guideline 1: superlatives require evidence"
 
-出力は厳密な JSON のみ。前置き・説明・コードフェンスは一切禁止。
-出力スキーマ：
-{ "pattern": "特定コピーに依存しない一般的なトリガー条件", "label": "適合" | "違反", "reason": "理由（80字以内）" }`;
+Output STRICT JSON only. No preamble, no explanation, no code fences.
+Output schema:
+{ "pattern": "a general trigger condition not tied to specific copy", "label": "Compliant" | "Violation", "reason": "reason (<= 140 chars)" }`;
 
-  const user = `【ガイドライン】
+  const user = `[Guideline]
 ${guideline}
 
-【専門家が判断したコピー】
+[Copy the expert judged]
 ${copy}
 
-【専門家の判断】
-判定: ${expertLabel}
-理由: ${expertReason}
+[Expert's judgment]
+verdict: ${expertLabel}
+reason: ${expertReason}
 
-この判断を汎用ルールへ一般化し、JSON のみを出力してください。`;
+Generalize this into a reusable rule and output JSON only.`;
 
   return { system, user };
 }

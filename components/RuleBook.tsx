@@ -7,16 +7,16 @@ export default function RuleBook({ rules }: { rules: Rule[] }) {
   return (
     <div className="flex flex-col">
       <div className="mb-2 flex items-center gap-2">
-        <h2 className="text-sm font-semibold text-slate-200">判断ルール集</h2>
+        <h2 className="text-sm font-semibold text-slate-200">Rule Book</h2>
         <span className="rounded-full bg-ink-600 px-2 py-0.5 text-xs text-slate-300">
           {rules.length}
         </span>
-        <span className="text-[11px] text-slate-500">すべて専門家ジャッジ由来</span>
+        <span className="text-[11px] text-slate-500">All derived from expert judgments</span>
       </div>
 
       {rules.length === 0 ? (
         <div className="rounded-lg border border-dashed border-ink-600 p-4 text-center text-xs text-slate-500">
-          まだルールはありません。専門家がジャッジすると蓄積されます。
+          No rules yet. They accumulate as experts make judgments.
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -29,7 +29,7 @@ export default function RuleBook({ rules }: { rules: Rule[] }) {
                 <p className="text-sm leading-snug text-slate-100">{r.pattern}</p>
                 <span
                   className={`shrink-0 rounded border px-2 py-0.5 text-xs font-medium ${
-                    r.label === "適合"
+                    r.label === "Compliant"
                       ? "border-ok/30 bg-ok/15 text-ok"
                       : "border-bad/30 bg-bad/15 text-bad"
                   }`}
@@ -45,12 +45,12 @@ export default function RuleBook({ rules }: { rules: Rule[] }) {
                     <span
                       className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${ex.badge}`}
                     >
-                      {ex.short}エキスパート由来
+                      from {ex.short} expert
                     </span>
                   ) : null;
                 })()}
                 <span className="font-mono text-[10px] text-slate-600">
-                  {r.id} ・ 由来ケース {r.sourceCaseId}
+                  {r.id} · from case {r.sourceCaseId}
                 </span>
               </div>
             </li>

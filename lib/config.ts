@@ -33,4 +33,5 @@ export const OFFLINE_DEMO_MODE =
 
 // ブランド表示名
 export const APP_NAME = "Whetstone";
-export const APP_TAGLINE = "専門家の判断を砥石に、AIエージェントを研ぎ上げる";
+export const APP_TAGLINE =
+  "A runtime layer that sharpens AI agents against the people who know.";

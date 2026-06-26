@@ -1,5 +1,5 @@
-export type Label = "適合" | "違反" | "要確認";
-export type FinalLabel = "適合" | "違反";
+export type Label = "Compliant" | "Violation" | "Needs Review";
+export type FinalLabel = "Compliant" | "Violation";
 
 export interface Case {
   id: string;
