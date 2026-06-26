@@ -236,20 +236,23 @@ export default function Page() {
     dispatch({ type: "FINISH_BATCH", result, cases });
   }, [running, batchHistory.length, rules, threshold, nextBatchNumber]);
 
-  const submitAdhoc = useCallback(async () => {
-    const copy = draft.trim();
-    if (!copy || adhocBusy) return;
-    setAdhocBusy(true);
-    const { caseObj, judgment } = await judgeAdhoc(
-      copy,
-      rules,
-      threshold,
-      Date.now()
-    );
-    dispatch({ type: "ADHOC_RESULT", caseObj, judgment });
-    setDraft("");
-    setAdhocBusy(false);
-  }, [draft, adhocBusy, rules, threshold]);
+  const submitAdhoc = useCallback(
+    async (copyArg?: string) => {
+      const copy = (copyArg ?? draft).trim();
+      if (!copy || adhocBusy) return;
+      setDraft(copy); // reflect what's being judged in the box
+      setAdhocBusy(true);
+      const { caseObj, judgment } = await judgeAdhoc(
+        copy,
+        rules,
+        threshold,
+        Date.now()
+      );
+      dispatch({ type: "ADHOC_RESULT", caseObj, judgment });
+      setAdhocBusy(false);
+    },
+    [draft, adhocBusy, rules, threshold]
+  );
 
   const confirmReview = useCallback(
     async (caseId: string, label: FinalLabel, reason: string) => {
@@ -396,26 +399,35 @@ export default function Page() {
               />
               <button
                 type="button"
-                onClick={submitAdhoc}
+                onClick={() => submitAdhoc()}
                 disabled={adhocBusy || !draft.trim()}
                 className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-ink-900 transition-opacity hover:opacity-90 disabled:opacity-40"
               >
                 {adhocBusy ? "Judging…" : "Judge"}
               </button>
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {['The #1 pen in the world', 'Twice as fast as other brands', 'Our best ink yet', 'Free today only'].map(
-                (ex) => (
-                  <button
-                    key={ex}
-                    type="button"
-                    onClick={() => setDraft(ex)}
-                    className="rounded border border-ink-600 px-2 py-0.5 text-[11px] text-slate-400 transition-colors hover:border-accent/40 hover:text-accent-soft"
-                  >
-                    {ex}
-                  </button>
-                )
-              )}
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[11px] text-slate-500">
+                Try a sample:
+              </span>
+              {[
+                { copy: "Now available in 12 colors.", hint: "likely compliant" },
+                { copy: "The #1 pen in the world.", hint: "superlative — escalates" },
+                { copy: "Twice as smooth as other brands.", hint: "comparison — escalates" },
+                { copy: "Our best ink yet.", hint: "self-comparison — allowed" },
+                { copy: "Free today only.", hint: "price — escalates" },
+              ].map((s) => (
+                <button
+                  key={s.copy}
+                  type="button"
+                  title={`${s.copy} (${s.hint})`}
+                  onClick={() => submitAdhoc(s.copy)}
+                  disabled={adhocBusy}
+                  className="rounded-full border border-ink-600 px-2.5 py-0.5 text-[11px] text-slate-300 transition-colors hover:border-accent/50 hover:text-accent-soft disabled:opacity-40"
+                >
+                  {s.copy}
+                </button>
+              ))}
             </div>
           </section>
 
